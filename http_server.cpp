@@ -1,4 +1,5 @@
 #include <netinet/in.h>  //sockaddr_in
+#include <arpa/inet.h>
 
 //libevent
 #include <event2/event.h>
@@ -12,6 +13,8 @@
 #include <stdlib.h>
 #include <errno.h>
 
+#include "log.h"
+
 using namespace std;
 
 
@@ -20,8 +23,9 @@ void read_cb(bufferevent *bev, void *ctx)
 	evbuffer *input = bufferevent_get_input(bev);
 	//evbuffer *output = bufferevent_get_output(bev);
 	int input_len = evbuffer_get_length(input);
-	cout << input_len << endl;
-	cout << evbuffer_pullup(input, input_len) << endl;
+//	cout << input_len << endl;
+//	cout << evbuffer_pullup(input, input_len) << endl;
+	DEBUG_LOG("%s", evbuffer_pullup(input, input_len));
 }
 
 void event_cb(bufferevent *bev, short events, void *ctx)
@@ -32,7 +36,7 @@ void event_cb(bufferevent *bev, short events, void *ctx)
 
 		if (err)
 		{
-			printf("Socket error: %s\n", evutil_socket_error_to_string(err));
+			DEBUG_LOG("Socket error: %s\n", evutil_socket_error_to_string(err));
 		}
 	}
 
@@ -52,10 +56,15 @@ void accept_conn_cb(evconnlistener *listener, evutil_socket_t fd,
 
 	if(bev == NULL)
 	{
-		cout << "get bufferevent error! " << fd << endl;
+		DEBUG_LOG("get bufferevent error!");
 		return;
 	}
 
+	char ip[INET_ADDRSTRLEN];
+	inet_ntop(AF_INET, &(((sockaddr_in*)address)->sin_addr), 
+			ip, sizeof(ip));
+
+	DEBUG_LOG("accept from:%s", ip);
 	bufferevent_setcb(bev, read_cb, 0, event_cb, 0);
 	bufferevent_enable(bev, EV_READ | EV_WRITE);
 }
@@ -67,17 +76,19 @@ void accept_error_cb(evconnlistener *listener, void *ctx)
 
 	if (err)
 	{
-		fprintf(stderr, "Got an error %d (%s) on the listener. Shutting down.\n", err, evutil_socket_error_to_string(err));
+		DEBUG_LOG("Got an error %d (%s) on the listener. Shutting down.\n", err, evutil_socket_error_to_string(err));
 	}
 	event_base_loopexit(base, NULL);
 }
 
 int main(int argc, char* argv[])
 {
+	INIT_LOG("server");
+
 	event_base* base = event_base_new();
 	if(base == NULL)
 	{
-		cout << "get event_base error!" << endl;
+		DEBUG_LOG("get event_base error!");
 		return 0;	
 	}
 
@@ -101,7 +112,7 @@ int main(int argc, char* argv[])
 	
 	if(listener == NULL)
 	{
-		cout << "get evconnlistener error!" << endl;
+		DEBUG_LOG("get evconnlistener error!");
 		return 0;
 	}
 
