@@ -23,9 +23,16 @@ void read_cb(bufferevent *bev, void *ctx)
 	evbuffer *input = bufferevent_get_input(bev);
 	//evbuffer *output = bufferevent_get_output(bev);
 	int input_len = evbuffer_get_length(input);
-//	cout << input_len << endl;
-//	cout << evbuffer_pullup(input, input_len) << endl;
-	DEBUG_LOG("%s", evbuffer_pullup(input, input_len));
+//	DEBUG_LOG("%s", evbuffer_pullup(input, input_len));
+
+	char* line;
+	size_t len;
+	line = evbuffer_readln(input, &len, EVBUFFER_EOL_CRLF);
+	if(line) //获得一行
+	{
+		DEBUG_LOG("%s", line);
+		free(line);	
+	}
 }
 
 void event_cb(bufferevent *bev, short events, void *ctx)
@@ -63,8 +70,8 @@ void accept_conn_cb(evconnlistener *listener, evutil_socket_t fd,
 	char ip[INET_ADDRSTRLEN];
 	inet_ntop(AF_INET, &(((sockaddr_in*)address)->sin_addr), 
 			ip, sizeof(ip));
-
 	DEBUG_LOG("accept from:%s", ip);
+
 	bufferevent_setcb(bev, read_cb, 0, event_cb, 0);
 	bufferevent_enable(bev, EV_READ | EV_WRITE);
 }
@@ -107,7 +114,7 @@ int main(int argc, char* argv[])
 	sin.sin_addr.s_addr = htonl(INADDR_ANY);
 
 	evconnlistener* listener = evconnlistener_new_bind(base, accept_conn_cb,
-		   	0, LEV_OPT_CLOSE_ON_FREE | LEV_OPT_REUSEABLE | LEV_OPT_THREADSAFE, 
+		   	0, LEV_OPT_CLOSE_ON_FREE | LEV_OPT_REUSEABLE /*| LEV_OPT_THREADSAFE*/, 
 			-1, (sockaddr*)&sin, sizeof(sin));
 	
 	if(listener == NULL)

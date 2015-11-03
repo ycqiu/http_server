@@ -1,9 +1,31 @@
-all : server 
+CXX = g++
+LD = g++
+CXXFLAGS = -g -Wall
+LDFLAGS = -levent
+SRC_FILE = $(wildcard *.cpp)
+OBJ_FILE = $(patsubst %.cpp, %.o, $(SRC_FILE))
 
-server:  http_server.cpp
-	g++ -Wall $^ -levent_core -o $@ 
+all: hello
+
+hello : $(OBJ_FILE) 
+	$(LD) $^ -o $@ $(LDFLAGS)
+
+
+#生成依赖文件
+%.d : %.cpp
+	$(CXX) $(CXXFLAGS) -M $^  > $@
+
+include $(SRC_FILE:.cpp=.d) 
+
+print:
+	@echo $(SRC_FILE)
+	@echo $(OBJ_FILE)
 
 clean:
-	rm -f server
+	rm -f *.o
+	rm -f *.d
+	rm -f hello
 
-.PHONY: clean
+.PHONY: print clean
+	
+	
