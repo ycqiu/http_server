@@ -24,6 +24,7 @@ private:
 		REQUEST_LINE = 0,
 		HEADER = 1,
 		MSG_BODY = 2,
+		FINISHED = 3,
 		ERROR_STATUS
 	};
 
@@ -41,12 +42,15 @@ private:
 	bool parse_header();
 	bool parse_msg_body();
 
-public:
-	static Http* create(event_base*, evutil_socket_t);
-	static void release(Http**);
+	char* get_word(char*, string&);
+
 
 	/*explict*/ Http(event_base*, evutil_socket_t);
 	~Http();
+
+public:
+	static Http* create(event_base*, evutil_socket_t);
+	static void release(Http**);
 
 	bool loop();
 	void run(void* arg);
