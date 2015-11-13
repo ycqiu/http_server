@@ -1,4 +1,7 @@
 #include <assert.h>
+#include <string.h>
+#include <errno.h>
+#include <sys/stat.h>
 #include "http.h"
 #include "log.h"
 
@@ -224,11 +227,18 @@ bool Http::excute()
 {
 	assert(status == FINISHED);		
 	DEBUG_LOG("excute");
-	
+	const string dir = "./files";	
+
 	size_t pos = path.find('?', 0);
 	if(pos == string::npos)
 	{
-	
+		path =  dir + path;	
+
+		struct stat buf;
+		if(lstat(path.c_str(), &buf) < 0)	
+		{
+			strerror(errno);	
+		}
 	}
 	else
 	{
