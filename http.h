@@ -32,7 +32,7 @@ private:
 	string path;
 	string version;
 	map<string, string> header_map;
-	string mes_body;
+	string msg_body;
 
 	char status;  
 
@@ -41,9 +41,9 @@ private:
 	bool parse_request_line();
 	bool parse_header();
 	bool parse_msg_body();
+	bool excute();
 
 	char* get_word(char*, string&);
-
 
 	/*explict*/ Http(event_base*, evutil_socket_t);
 	~Http();

@@ -1,6 +1,7 @@
+#include <assert.h>
 #include "http.h"
 #include "log.h"
-#include <assert.h>
+
 
 void Http::read_cb(bufferevent *bev, void *ctx)
 {
@@ -139,7 +140,7 @@ bool Http::parse_header()
 	line = evbuffer_readln(input, &len, EVBUFFER_EOL_CRLF);
 	if(line == NULL) 
 	{
-		//break;	
+		return false;
 	}
 
 	char* p = line;
@@ -173,6 +174,20 @@ bool Http::parse_header()
 
 bool Http::parse_msg_body()
 {
+	assert(status == MSG_BODY);
+	evbuffer *input = bufferevent_get_input(bev);
+	size_t len = evbuffer_get_length(input);
+	if(len == 0)
+	{
+		DEBUG_LOG("msg_body is empty");
+	}
+	else
+	{
+		msg_body = (char*)evbuffer_pullup(input, len);
+		DEBUG_LOG("msg_body:%s", msg_body.c_str());
+		evbuffer_drain(input, len);
+		status = FINISHED;
+	}
 	status = FINISHED;
 	return true;
 }
@@ -194,6 +209,10 @@ bool Http::loop()
 			flag = parse_msg_body();
 			break;
 
+		case FINISHED:
+			flag = excute();
+			break;
+
 		case ERROR_STATUS:
 			flag = false;
 			break;
@@ -201,3 +220,19 @@ bool Http::loop()
 	return flag;
 }
 
+bool Http::excute()
+{
+	assert(status == FINISHED);		
+	DEBUG_LOG("excute");
+	
+	size_t pos = path.find('?', 0);
+	if(pos == string::npos)
+	{
+	
+	}
+	else
+	{
+	
+	}
+	return false;
+}
