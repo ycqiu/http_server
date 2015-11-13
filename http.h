@@ -42,6 +42,8 @@ private:
 	bool parse_header();
 	bool parse_msg_body();
 	bool excute();
+	bool exec_cgi(const string&);
+	bool send_file(const string&);
 
 	char* get_word(char*, string&);
 

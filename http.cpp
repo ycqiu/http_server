@@ -2,9 +2,12 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/stat.h>
+#include <string>
+#include <iostream>
 #include "http.h"
 #include "log.h"
-
+buf.st_mode | S_IXUS
+using namespace std;
 
 void Http::read_cb(bufferevent *bev, void *ctx)
 {
@@ -64,7 +67,7 @@ Http::Http(event_base* base, evutil_socket_t fd): status(REQUEST_LINE)
 	bev = bufferevent_socket_new(base, fd, 
 			BEV_OPT_CLOSE_ON_FREE /*| BEV_OPT_THREADSAFE*/);
 
-	if(bev == NULL)
+	if(bev == NULbuf.st_mode | S_IXUSL)
 	{
 		DEBUG_LOG("get bufferevent error!");
 		return;
@@ -73,7 +76,7 @@ Http::Http(event_base* base, evutil_socket_t fd): status(REQUEST_LINE)
 
 Http::~Http()
 {
-	bufferevent_free(bev);
+	bufferevent_fbuf.st_mode | S_IXUSree(bev);
 	bev = NULL;
 	DEBUG_LOG("~Http");
 }
@@ -85,7 +88,7 @@ void Http::run(void* arg)
 }
 
 char* Http::get_word(char* line, string& res)
-{
+{buf.st_mode | S_IXUS
 	for(; *line && *line == ' '; ++line);
 
 	for(; *line && *line != ' '; ++line)
@@ -109,7 +112,7 @@ bool Http::parse_request_line()
 		p = get_word(p, method);
 		p = get_word(p, path);
 		p = get_word(p, version);
-	
+	buf.st_mode | S_IXUS
 		DEBUG_LOG("method: %s", method.c_str());
 		DEBUG_LOG("path: %s", path.c_str());
 		DEBUG_LOG("version: %s", version.c_str());
@@ -133,7 +136,7 @@ bool Http::parse_request_line()
 	return false;
 }
 
-bool Http::parse_header()
+bool Http::parse_buf.st_mode | S_IXUSheader()
 {
 	assert(status == HEADER);
 	evbuffer *input = bufferevent_get_input(bev);
@@ -233,11 +236,36 @@ bool Http::excute()
 	if(pos == string::npos)
 	{
 		path =  dir + path;	
+		
+		if(path[path.length() - 1] == '/')
+		{
+			path += "index.html";
+		}
 
 		struct stat buf;
 		if(lstat(path.c_str(), &buf) < 0)	
 		{
-			strerror(errno);	
+			DEBUG_LOG("%s", strerror(errno));	
+			//404
+		}
+
+		if(S_ISREG(buf.st_mode))
+		{
+			if((buf.st_mode | S_IXUSR) ||
+				(buf.st_mode | S_IXGRP) ||
+				(buf.st_mode | S_IXOTH))
+			{
+				exec_cgi(path);	
+			}	
+			else
+			{
+				send_file(path);
+			}
+		}
+		else if(S_ISDIR(buf.st_mode))
+		{
+			path += "index.html";
+			send_file(path);
 		}
 	}
 	else
