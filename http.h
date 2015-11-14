@@ -17,6 +17,7 @@ class Http
 private:
 	static void event_cb(bufferevent *bev, short events, void *ctx);
 	static void read_cb(bufferevent *bev, void *ctx);
+	static void write_cb(bufferevent *bev, void *ctx);
 
 private:	
 	enum
@@ -35,15 +36,16 @@ private:
 	string msg_body;
 
 	char status;  
-
+	bool all_data_send;
 	bufferevent* bev;
 		
+
 	bool parse_request_line();
 	bool parse_header();
 	bool parse_msg_body();
 	bool excute();
 	bool exec_cgi(const string&);
-	bool send_file(const string&);
+	bool send_file(const string&, size_t);
 
 	char* get_word(char*, string&);
 
@@ -56,5 +58,7 @@ public:
 
 	bool loop();
 	void run(void* arg);
+
+	bool get_all_data_send();
 };
 

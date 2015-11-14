@@ -1,3 +1,6 @@
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdio.h>
 #include <assert.h>
 #include <string.h>
 #include <errno.h>
@@ -6,15 +9,14 @@
 #include <iostream>
 #include "http.h"
 #include "log.h"
-buf.st_mode | S_IXUS
+
 using namespace std;
 
 void Http::read_cb(bufferevent *bev, void *ctx)
 {
-	evbuffer *input = bufferevent_get_input(bev);
-	//evbuffer *output = bufferevent_get_output(bev);
-	int input_len = evbuffer_get_length(input);
-	DEBUG_LOG("recv: %s", evbuffer_pullup(input, input_len));
+	//evbuffer *input = bufferevent_get_input(bev);
+	//int input_len = evbuffer_get_length(input);
+	//DEBUG_LOG("%s", evbuffer_pullup(input, input_len));
 /*
 	char* line;
 	size_t len;
@@ -27,6 +29,18 @@ void Http::read_cb(bufferevent *bev, void *ctx)
 
 	Http* http = (Http*)ctx;
 	while(http->loop());
+}
+
+void Http::write_cb(bufferevent *bev, void *ctx)
+{
+	Http* http = (Http*)ctx;
+	evbuffer *output = bufferevent_get_output(bev);
+	if(http->get_all_data_send() && 
+			evbuffer_get_length(output) == 0)
+	{
+		DEBUG_LOG("empty");
+		Http::release(&http);
+	}
 }
 
 void Http::event_cb(bufferevent *bev, short events, void *ctx)
@@ -43,7 +57,6 @@ void Http::event_cb(bufferevent *bev, short events, void *ctx)
 
 	if (events & (BEV_EVENT_EOF | BEV_EVENT_ERROR))
 	{
-	//	bufferevent_free(bev);
 		Http* http = (Http*) ctx;
 		Http::release(&http);
 		DEBUG_LOG("%p", http);
@@ -62,12 +75,13 @@ void Http::release(Http** p_http)
 	*p_http = NULL;
 }
 
-Http::Http(event_base* base, evutil_socket_t fd): status(REQUEST_LINE)
+Http::Http(event_base* base, evutil_socket_t fd): status(REQUEST_LINE), 
+	all_data_send(false)
 {
 	bev = bufferevent_socket_new(base, fd, 
 			BEV_OPT_CLOSE_ON_FREE /*| BEV_OPT_THREADSAFE*/);
 
-	if(bev == NULbuf.st_mode | S_IXUSL)
+	if(bev == NULL)
 	{
 		DEBUG_LOG("get bufferevent error!");
 		return;
@@ -76,19 +90,24 @@ Http::Http(event_base* base, evutil_socket_t fd): status(REQUEST_LINE)
 
 Http::~Http()
 {
-	bufferevent_fbuf.st_mode | S_IXUSree(bev);
+	bufferevent_free(bev);
 	bev = NULL;
 	DEBUG_LOG("~Http");
 }
 
+bool Http::get_all_data_send()
+{
+	return all_data_send;
+}
+
 void Http::run(void* arg)
 {
-	bufferevent_setcb(bev, read_cb, 0, event_cb, arg);
-	bufferevent_enable(bev, EV_READ | EV_WRITE);
+	bufferevent_setcb(bev, read_cb, write_cb, event_cb, arg);
+	bufferevent_enable(bev, EV_READ);
 }
 
 char* Http::get_word(char* line, string& res)
-{buf.st_mode | S_IXUS
+{
 	for(; *line && *line == ' '; ++line);
 
 	for(; *line && *line != ' '; ++line)
@@ -112,7 +131,6 @@ bool Http::parse_request_line()
 		p = get_word(p, method);
 		p = get_word(p, path);
 		p = get_word(p, version);
-	buf.st_mode | S_IXUS
 		DEBUG_LOG("method: %s", method.c_str());
 		DEBUG_LOG("path: %s", path.c_str());
 		DEBUG_LOG("version: %s", version.c_str());
@@ -136,7 +154,7 @@ bool Http::parse_request_line()
 	return false;
 }
 
-bool Http::parse_buf.st_mode | S_IXUSheader()
+bool Http::parse_header()
 {
 	assert(status == HEADER);
 	evbuffer *input = bufferevent_get_input(bev);
@@ -230,6 +248,14 @@ bool Http::excute()
 {
 	assert(status == FINISHED);		
 	DEBUG_LOG("excute");
+
+	if(!strcasecmp(method.c_str(), "GET") && 
+			!strcasecmp(method.c_str(), "POST"))
+	{
+		//501
+		return false;
+	}
+
 	const string dir = "./files";	
 
 	size_t pos = path.find('?', 0);
@@ -242,6 +268,8 @@ bool Http::excute()
 			path += "index.html";
 		}
 
+		DEBUG_LOG("%s", path.c_str());
+
 		struct stat buf;
 		if(lstat(path.c_str(), &buf) < 0)	
 		{
@@ -251,21 +279,22 @@ bool Http::excute()
 
 		if(S_ISREG(buf.st_mode))
 		{
-			if((buf.st_mode | S_IXUSR) ||
-				(buf.st_mode | S_IXGRP) ||
-				(buf.st_mode | S_IXOTH))
+			DEBUG_LOG("file");
+			if((buf.st_mode & S_IXUSR)|| 
+				(buf.st_mode & S_IXGRP) ||
+				(buf.st_mode & S_IXOTH))
 			{
 				exec_cgi(path);	
 			}	
 			else
 			{
-				send_file(path);
+				send_file(path, buf.st_size);
 			}
 		}
 		else if(S_ISDIR(buf.st_mode))
 		{
 			path += "index.html";
-			send_file(path);
+			send_file(path, buf.st_size);
 		}
 	}
 	else
@@ -274,3 +303,32 @@ bool Http::excute()
 	}
 	return false;
 }
+
+bool Http::exec_cgi(const string& path)
+{
+	DEBUG_LOG("%s", path.c_str());
+	return true;
+}
+
+bool Http::send_file(const string& path, size_t size)
+{
+	DEBUG_LOG("%s, %d", path.c_str(), size);
+	int fd = open(path.c_str(), O_RDONLY);
+	if(fd < 0)
+	{
+		DEBUG_LOG("%s", strerror(errno));
+		return false;
+	}	
+
+	evbuffer* output = bufferevent_get_output(bev);
+	string str = "HTTP/1.1 200 OK\r\n";
+	str += "Content-type: text/html\r\n";
+	str += "\r\n";
+	evbuffer_add(output, str.c_str(), str.length());
+
+	evbuffer_add_file(output, fd, 0, size);
+	all_data_send = true;
+	return true;
+}
+
+

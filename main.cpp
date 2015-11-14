@@ -26,6 +26,7 @@ void accept_conn_cb(evconnlistener *listener, evutil_socket_t fd,
 	Http* http = Http::create(base, fd);
 	DEBUG_LOG("http: %p", http);
 	http->run(http);
+
 	char ip[INET_ADDRSTRLEN];
 	inet_ntop(AF_INET, &(((sockaddr_in*)address)->sin_addr), 
 			ip, sizeof(ip));
