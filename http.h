@@ -36,9 +36,14 @@ private:
 	string msg_body;
 
 	char status;  
-	bool all_data_send;
+	bool all_send;
 	bufferevent* bev;
 		
+private:
+	/*explict*/ Http(event_base*, evutil_socket_t);
+	~Http();
+
+	char* get_word(char*, string&);
 
 	bool parse_request_line();
 	bool parse_header();
@@ -47,10 +52,7 @@ private:
 	bool exec_cgi(const string&);
 	bool send_file(const string&, size_t);
 
-	char* get_word(char*, string&);
-
-	/*explict*/ Http(event_base*, evutil_socket_t);
-	~Http();
+	void not_found();   //404
 
 public:
 	static Http* create(event_base*, evutil_socket_t);
@@ -59,6 +61,7 @@ public:
 	bool loop();
 	void run(void* arg);
 
-	bool get_all_data_send();
+	void set_all_send(bool);
+	bool get_all_send();
 };
 

@@ -4,9 +4,11 @@
 #include <assert.h>
 #include <string.h>
 #include <errno.h>
+#include <stdlib.h>
 #include <sys/stat.h>
-#include <string>
+#include <sys/wait.h>
 #include <iostream>
+#include <string>
 #include "http.h"
 #include "log.h"
 
@@ -35,7 +37,7 @@ void Http::write_cb(bufferevent *bev, void *ctx)
 {
 	Http* http = (Http*)ctx;
 	evbuffer *output = bufferevent_get_output(bev);
-	if(http->get_all_data_send() && 
+	if(http->get_all_send() && 
 			evbuffer_get_length(output) == 0)
 	{
 		DEBUG_LOG("empty");
@@ -76,7 +78,7 @@ void Http::release(Http** p_http)
 }
 
 Http::Http(event_base* base, evutil_socket_t fd): status(REQUEST_LINE), 
-	all_data_send(false)
+	all_send(false)
 {
 	bev = bufferevent_socket_new(base, fd, 
 			BEV_OPT_CLOSE_ON_FREE /*| BEV_OPT_THREADSAFE*/);
@@ -95,9 +97,14 @@ Http::~Http()
 	DEBUG_LOG("~Http");
 }
 
-bool Http::get_all_data_send()
+bool Http::get_all_send()
 {
-	return all_data_send;
+	return all_send;
+}
+
+void Http::set_all_send(bool v)
+{
+	all_send = v;	
 }
 
 void Http::run(void* arg)
@@ -275,6 +282,8 @@ bool Http::excute()
 		{
 			DEBUG_LOG("%s", strerror(errno));	
 			//404
+			not_found();	
+			return false;
 		}
 
 		if(S_ISREG(buf.st_mode))
@@ -307,6 +316,69 @@ bool Http::excute()
 bool Http::exec_cgi(const string& path)
 {
 	DEBUG_LOG("%s", path.c_str());
+	
+	int cgi_in[2], cgi_out[2];
+	if(pipe(cgi_in) < 0 || pipe(cgi_out) < 0)
+	{
+		DEBUG_LOG("%s", strerror(errno));
+		// 502
+		return  false;	
+	}
+
+	pid_t pid = fork();
+	if(pid < 0)
+	{
+		DEBUG_LOG("%s", strerror(errno));
+		// 502
+		return  false;	
+	}
+	else if(pid == 0)
+	{
+		DEBUG_LOG("son process");
+		close(cgi_in[0]);		
+		close(cgi_out[1]);
+		
+		dup2(cgi_out[0], 0);
+		dup2(cgi_in[1], 1);
+
+		setenv("REMOTE_METHOD", method.c_str(), 1);
+
+		string name = path;
+		size_t pos = path.rfind("/");
+		if(pos != string::npos)
+		{
+			name = path.substr(pos + 1);
+		}
+	
+		if(execl(path.c_str(), name.c_str(), (char*)0) < 0)
+		{
+			DEBUG_LOG("%s", strerror(errno));
+			// 502
+			return  false;	
+		}
+	}
+	else // parent
+	{
+		DEBUG_LOG("parent process");
+		close(cgi_in[1]);	
+		close(cgi_out[0]);	
+
+		size_t sz;
+		char str[1024] = {'\0'};
+		evbuffer* output = bufferevent_get_output(bev);
+		while( (sz = read(cgi_in[0], str, sizeof(str))) > 0 )
+		{
+			evbuffer_add(output, str, sz);
+
+			str[sz] = '\0';
+			DEBUG_LOG("%s", str);
+		}
+
+		
+
+		waitpid(pid, NULL, 0);
+	}
+
 	return true;
 }
 
@@ -327,8 +399,22 @@ bool Http::send_file(const string& path, size_t size)
 	evbuffer_add(output, str.c_str(), str.length());
 
 	evbuffer_add_file(output, fd, 0, size);
-	all_data_send = true;
+	set_all_send(true);
 	return true;
 }
 
+void Http::not_found()
+{
+	evbuffer* output = bufferevent_get_output(bev);
+	string str = "HTTP/1.1 404 Not Found\r\n";
+	str += "Content-type: text/html\r\n";
+	str += "\r\n";
 
+	str +=  "<html>" \
+			"<body>" \
+			"<h1 align = center>404 NOT Found</h1>" \
+			"</body>";
+
+	evbuffer_add(output, str.c_str(), str.length());
+	set_all_send(true);
+}
