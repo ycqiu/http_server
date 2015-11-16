@@ -308,7 +308,11 @@ bool Http::excute()
 	}
 	else
 	{
-	
+		string query = path.substr(pos + 1);
+		path.erase(pos);
+		path =  dir + path;	
+		DEBUG_LOG("%s", path.c_str());
+		exec_cgi(path, query);
 	}
 	return false;
 }
@@ -364,9 +368,14 @@ bool Http::exec_cgi(const string& path, const string& query)
 		close(cgi_in[1]);	
 		close(cgi_out[0]);	
 
+		evbuffer* output = bufferevent_get_output(bev);
+		string head =  "HTTP/1.1 200 OK\r\n";
+		head += "Content-type: text/html\r\n";
+		head += "\r\n";
+		evbuffer_add(output, head.c_str(), head.length());
+
 		size_t sz;
 		char str[1024] = {'\0'};
-		evbuffer* output = bufferevent_get_output(bev);
 		while( (sz = read(cgi_in[0], str, sizeof(str))) > 0 )
 		{
 			evbuffer_add(output, str, sz);
@@ -375,8 +384,7 @@ bool Http::exec_cgi(const string& path, const string& query)
 			DEBUG_LOG("%s", str);
 		}
 
-		
-
+		set_all_send(true);
 		waitpid(pid, NULL, 0);
 	}
 
