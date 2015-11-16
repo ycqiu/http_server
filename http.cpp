@@ -313,7 +313,7 @@ bool Http::excute()
 	return false;
 }
 
-bool Http::exec_cgi(const string& path)
+bool Http::exec_cgi(const string& path, const string& query)
 {
 	DEBUG_LOG("%s", path.c_str());
 	
@@ -342,6 +342,7 @@ bool Http::exec_cgi(const string& path)
 		dup2(cgi_in[1], 1);
 
 		setenv("REMOTE_METHOD", method.c_str(), 1);
+		setenv("QUERY_STRING", query.c_str(), 1);
 
 		string name = path;
 		size_t pos = path.rfind("/");

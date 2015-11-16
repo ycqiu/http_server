@@ -49,7 +49,7 @@ private:
 	bool parse_header();
 	bool parse_msg_body();
 	bool excute();
-	bool exec_cgi(const string&);
+	bool exec_cgi(const string&, const string& q = "");
 	bool send_file(const string&, size_t);
 
 	void not_found();   //404
