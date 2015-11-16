@@ -7,14 +7,14 @@ using namespace std;
 
 int main(int argc, char* argv[])
 {
-	printf("<h1>ycqiu</h1>\n");
+	printf("<h2>ycqiu</h2>\n");
 	for(int i = 0; i < argc; ++i)
 	{
-	//	cout << argv[i] << endl;
-		printf("<h1>%s</h1>\n", argv[i]);
+		printf("<h2>%s</h2>\n", argv[i]);
 	}
 
-//	cout << getenv("REMOTE_METHOD") << endl;
+	printf("<h2>REMOTE_METHOD = \"%s\"</h2>\n", getenv("REMOTE_METHOD"));
+	printf("<h2>QUERY_STRING = \"%s\"</h2>\n", getenv("QUERY_STRING"));
 
 	return 0;
 }
