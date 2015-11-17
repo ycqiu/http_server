@@ -14,6 +14,34 @@
 
 using namespace std;
 
+map<string, string> Http::type_map;
+
+void Http::insert_map(const string& key, const string& v)
+{
+	type_map[key] = "Content-type: " + v + "\r\n";
+}
+
+void Http::init_map()
+{
+	if(type_map.empty())
+	{
+		insert_map(".html", "text/html");
+		insert_map(".jpg", "image/jpeg");
+		insert_map(".png", "image/png");
+	}
+}
+
+string Http::get_type(const string& key)
+{
+	string res = type_map[".html"];
+	map<string, string>::iterator iter = type_map.find(key);
+	if(iter != type_map.end())
+	{
+		res = iter->second;	
+	}
+	return res;
+}
+
 void Http::read_cb(bufferevent *bev, void *ctx)
 {
 	//evbuffer *input = bufferevent_get_input(bev);
@@ -80,6 +108,7 @@ void Http::release(Http** p_http)
 Http::Http(event_base* base, evutil_socket_t fd): status(REQUEST_LINE), 
 	all_send(false)
 {
+	Http::init_map();
 	bev = bufferevent_socket_new(base, fd, 
 			BEV_OPT_CLOSE_ON_FREE /*| BEV_OPT_THREADSAFE*/);
 
@@ -403,7 +432,18 @@ bool Http::send_file(const string& path, size_t size)
 
 	evbuffer* output = bufferevent_get_output(bev);
 	string str = "HTTP/1.1 200 OK\r\n";
-	str += "Content-type: text/html\r\n";
+//	str += "Content-type: text/html\r\n";
+	
+	size_t pos = path.rfind('.');
+	string extension;
+	if(pos != string::npos)
+	{
+		extension = path.substr(pos);
+	}
+	DEBUG_LOG("%d %s", pos, extension.c_str());
+	string type = get_type(extension);
+	DEBUG_LOG("%s", type.c_str());
+	str += type;
 	str += "\r\n";
 	evbuffer_add(output, str.c_str(), str.length());
 

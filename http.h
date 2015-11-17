@@ -19,6 +19,12 @@ private:
 	static void read_cb(bufferevent *bev, void *ctx);
 	static void write_cb(bufferevent *bev, void *ctx);
 
+private:
+	static map<string, string> type_map;
+	static void init_map();
+	static void insert_map(const string&, const string&);
+	static string get_type(const string&);
+
 private:	
 	enum
 	{
