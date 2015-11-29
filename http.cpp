@@ -8,11 +8,13 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <iostream>
+#include <algorithm>
 #include <string>
 #include "http.h"
 #include "log.h"
 
 using namespace std;
+
 
 map<string, string> Http::type_map;
 
@@ -33,7 +35,7 @@ void Http::init_map()
 
 string Http::get_type(const string& key)
 {
-	string res = type_map[".html"];
+	string res;
 	map<string, string>::iterator iter = type_map.find(key);
 	if(iter != type_map.end())
 	{
@@ -178,7 +180,8 @@ bool Http::parse_request_line()
 			free(line);	
 			return false;
 		}
-
+		
+		transform(method.begin(), method.end(), method.begin(), ::toupper);  
 		free(line);	
 		status = HEADER;
 		return true;
@@ -285,8 +288,7 @@ bool Http::excute()
 	assert(status == FINISHED);		
 	DEBUG_LOG("excute");
 
-	if(!strcasecmp(method.c_str(), "GET") && 
-			!strcasecmp(method.c_str(), "POST"))
+	if(method != "GET" && method != "POST")
 	{
 		//501
 		return false;
@@ -322,7 +324,14 @@ bool Http::excute()
 				(buf.st_mode & S_IXGRP) ||
 				(buf.st_mode & S_IXOTH))
 			{
-				exec_cgi(path);	
+				if(method == "POST")
+				{
+					exec_cgi(path, msg_body);
+				}
+				else
+				{
+					exec_cgi(path);
+				}	
 			}	
 			else
 			{
@@ -335,7 +344,7 @@ bool Http::excute()
 			send_file(path, buf.st_size);
 		}
 	}
-	else
+	else //get
 	{
 		string query = path.substr(pos + 1);
 		path.erase(pos);

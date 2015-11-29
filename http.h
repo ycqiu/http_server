@@ -2,14 +2,10 @@
 #include <string>
 #include <string.h>
 #include <map>
-#include <errno.h>
-#include <stdlib.h>
 
 #include <event2/bufferevent.h>
 #include <event2/buffer.h>
 #include <event2/event.h>
-
-using namespace std;
 
 
 class Http
@@ -20,10 +16,10 @@ private:
 	static void write_cb(bufferevent *bev, void *ctx);
 
 private:
-	static map<string, string> type_map;
+	static std::map<std::string, std::string> type_map;
 	static void init_map();
-	static void insert_map(const string&, const string&);
-	static string get_type(const string&);
+	static void insert_map(const std::string&, const std::string&);
+	static std::string get_type(const std::string&);
 
 private:	
 	enum
@@ -35,11 +31,11 @@ private:
 		ERROR_STATUS
 	};
 
-	string method;
-	string path;
-	string version;
-	map<string, string> header_map;
-	string msg_body;
+	std::string method;
+	std::string path;
+	std::string version;
+	std::map<std::string, std::string> header_map;
+	std::string msg_body;
 
 	char status;  
 	bool all_send;
@@ -49,14 +45,14 @@ private:
 	/*explict*/ Http(event_base*, evutil_socket_t);
 	~Http();
 
-	char* get_word(char*, string&);
+	char* get_word(char*, std::string&);
 
 	bool parse_request_line();
 	bool parse_header();
 	bool parse_msg_body();
 	bool excute();
-	bool exec_cgi(const string&, const string& q = "");
-	bool send_file(const string&, size_t);
+	bool exec_cgi(const std::string&, const std::string& q = "");
+	bool send_file(const std::string&, size_t);
 
 	void not_found();   //404
 
