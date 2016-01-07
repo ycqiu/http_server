@@ -468,13 +468,13 @@ bool Http::send_file(const string& path, size_t size)
 	do \
 	{ \
 		evbuffer* output = bufferevent_get_output(bev); \
-		string str = "HTTP/1.1 "#code " " #msg "\r\n"; \
+		string str = "HTTP/1.1 " #code " " msg "\r\n"; \
 		str += "Content-type: text/html\r\n"; \
 		str += "\r\n"; \
 						\
 		str +=  "<html>" \
 				"<body>" \
-				"<h1 align = center>" #code " " #msg "</h1>" \
+				"<h1 align = center>" #code " " msg "</h1>" \
 				"</body>"; \
 							\
 		evbuffer_add(output, str.c_str(), str.length()); \
@@ -484,15 +484,15 @@ bool Http::send_file(const string& path, size_t size)
 
 void Http::not_found()
 {
-	ERROR(404, Not Found);
+	ERROR(404, "Not Found");
 }
 
 void Http::not_implement()
 {
-	ERROR(501, Not Implemented);
+	ERROR(501, "Not Implemented");
 }
 
 void Http::bad_gateway()
 {
-	ERROR( 502, Bad Gateway);
+	ERROR( 502, "Bad Gateway");
 }
