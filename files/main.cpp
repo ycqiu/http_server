@@ -7,6 +7,9 @@ using namespace std;
 
 int main(int argc, char* argv[])
 {
+	printf("Content-type: text/html\r\n");
+	printf("\r\n");
+
 	printf("<h2>ycqiu</h2>\n");
 	for(int i = 0; i < argc; ++i)
 	{

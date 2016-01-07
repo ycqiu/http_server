@@ -291,6 +291,7 @@ bool Http::excute()
 	if(method != "GET" && method != "POST")
 	{
 		//501
+		not_implement();
 		return false;
 	}
 
@@ -364,6 +365,7 @@ bool Http::exec_cgi(const string& path, const string& query)
 	{
 		DEBUG_LOG("%s", strerror(errno));
 		// 502
+		bad_gateway();
 		return  false;	
 	}
 
@@ -372,6 +374,7 @@ bool Http::exec_cgi(const string& path, const string& query)
 	{
 		DEBUG_LOG("%s", strerror(errno));
 		// 502
+		bad_gateway();
 		return  false;	
 	}
 	else if(pid == 0)
@@ -396,7 +399,6 @@ bool Http::exec_cgi(const string& path, const string& query)
 		if(execl(path.c_str(), name.c_str(), (char*)0) < 0)
 		{
 			DEBUG_LOG("%s", strerror(errno));
-			// 502
 			return  false;	
 		}
 	}
@@ -408,8 +410,8 @@ bool Http::exec_cgi(const string& path, const string& query)
 
 		evbuffer* output = bufferevent_get_output(bev);
 		string head =  "HTTP/1.1 200 OK\r\n";
-		head += "Content-type: text/html\r\n";
-		head += "\r\n";
+	//	head += "Content-type: text/html\r\n";
+	//	head += "\r\n";
 		evbuffer_add(output, head.c_str(), head.length());
 
 		size_t sz;
@@ -461,18 +463,36 @@ bool Http::send_file(const string& path, size_t size)
 	return true;
 }
 
+
+#define ERROR(code, msg) \
+	do \
+	{ \
+		evbuffer* output = bufferevent_get_output(bev); \
+		string str = "HTTP/1.1 "#code " " #msg "\r\n"; \
+		str += "Content-type: text/html\r\n"; \
+		str += "\r\n"; \
+						\
+		str +=  "<html>" \
+				"<body>" \
+				"<h1 align = center>" #code " " #msg "</h1>" \
+				"</body>"; \
+							\
+		evbuffer_add(output, str.c_str(), str.length()); \
+		set_all_send(true);	\
+	} while(0)
+
+
 void Http::not_found()
 {
-	evbuffer* output = bufferevent_get_output(bev);
-	string str = "HTTP/1.1 404 Not Found\r\n";
-	str += "Content-type: text/html\r\n";
-	str += "\r\n";
+	ERROR(404, Not Found);
+}
 
-	str +=  "<html>" \
-			"<body>" \
-			"<h1 align = center>404 NOT Found</h1>" \
-			"</body>";
+void Http::not_implement()
+{
+	ERROR(501, Not Implemented);
+}
 
-	evbuffer_add(output, str.c_str(), str.length());
-	set_all_send(true);
+void Http::bad_gateway()
+{
+	ERROR( 502, Bad Gateway);
 }

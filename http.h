@@ -55,6 +55,8 @@ private:
 	bool send_file(const std::string&, size_t);
 
 	void not_found();   //404
+	void not_implement();   //501
+	void bad_gateway();   //502
 
 public:
 	static Http* create(event_base*, evutil_socket_t);
