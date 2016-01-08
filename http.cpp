@@ -290,8 +290,7 @@ bool Http::excute()
 
 	if(method != "GET" && method != "POST")
 	{
-		//501
-		not_implement();
+		not_implement(); //501
 		return false;
 	}
 
@@ -313,8 +312,7 @@ bool Http::excute()
 		if(lstat(path.c_str(), &buf) < 0)	
 		{
 			DEBUG_LOG("%s", strerror(errno));	
-			//404
-			not_found();	
+			not_found(); //404 	
 			return false;
 		}
 
@@ -347,6 +345,11 @@ bool Http::excute()
 	}
 	else //get
 	{
+		if(method != "GET")
+		{
+			bad_request();  //400
+			return false;
+		}
 		string query = path.substr(pos + 1);
 		path.erase(pos);
 		path =  dir + path;	
@@ -373,8 +376,7 @@ bool Http::exec_cgi(const string& path, const string& query)
 	if(pid < 0)
 	{
 		DEBUG_LOG("%s", strerror(errno));
-		// 502
-		bad_gateway();
+		bad_gateway(); //502
 		return  false;	
 	}
 	else if(pid == 0)
@@ -481,6 +483,11 @@ bool Http::send_file(const string& path, size_t size)
 		set_all_send(true);	\
 	} while(0)
 
+
+void Http::bad_request()
+{
+	ERROR(400, "Bad Request");
+}
 
 void Http::not_found()
 {

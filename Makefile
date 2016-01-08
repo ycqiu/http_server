@@ -15,7 +15,7 @@ hello : $(OBJ_FILE)
 %.d : %.cpp
 	$(CXX) $(CXXFLAGS) -M $^  > $@
 
-include $(SRC_FILE:.cpp=.d) 
+#include $(SRC_FILE:.cpp=.d) 
 
 print:
 	@echo $(SRC_FILE)
