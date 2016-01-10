@@ -54,7 +54,6 @@ private:
 	bool exec_cgi(const std::string&, const std::string& q = "");
 	bool send_file(const std::string&, size_t);
 
-
 	void bad_request();   //400
 	void not_found();   //404
 	void not_implement();   //501

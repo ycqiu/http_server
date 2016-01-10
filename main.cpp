@@ -12,6 +12,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <signal.h>
+#include <sys/wait.h>
 
 #include "log.h"
 #include "http.h"
@@ -45,9 +47,20 @@ void accept_error_cb(evconnlistener *listener, void *ctx)
 	event_base_loopexit(base, NULL);
 }
 
+void clean_up_child_process(int signal_num)
+{
+	int stat;
+	while (waitpid(-1, &stat, WNOHANG) > 0);
+}
+
 int main(int argc, char* argv[])
 {
 	INIT_LOG("server");
+
+	struct sigaction sigchild_action;
+    memset(&sigchild_action, 0, sizeof(sigchild_action));
+    sigchild_action.sa_handler = &clean_up_child_process;
+    sigaction(SIGCHLD, &sigchild_action, NULL);
 
 	event_base* base = event_base_new();
 	if(base == NULL)
@@ -65,7 +78,8 @@ int main(int argc, char* argv[])
 	}
 	else
 	{
-		sin.sin_port = htons(80);
+		//sin.sin_port = htons(80);
+		sin.sin_port = htons(4567);
 	}
 
 	sin.sin_addr.s_addr = htonl(INADDR_ANY);

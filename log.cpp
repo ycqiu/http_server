@@ -29,6 +29,7 @@ void Log::open_new_file()
 
 	full_path += "_" + day;
 	file = fopen(full_path.c_str(), "ab+");				
+	//cout << fileno(file) << endl;
 	if(file == NULL)
 	{
 		return;

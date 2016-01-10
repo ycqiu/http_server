@@ -10,6 +10,7 @@
 #include <iostream>
 #include <algorithm>
 #include <string>
+#include <sys/socket.h>
 #include "http.h"
 #include "log.h"
 
@@ -59,8 +60,26 @@ void Http::read_cb(bufferevent *bev, void *ctx)
 		free(line);	
 	}*/
 
+	DEBUG_LOG("read");
 	Http* http = (Http*)ctx;
-	while(http->loop());
+	int fd = bufferevent_getfd(bev);
+	DEBUG_LOG("%d", fd);
+	sockaddr_storage ss;
+	socklen_t len = sizeof(ss);	
+	if(getsockname(fd, (sockaddr*)&ss, &len))
+	{
+		DEBUG_LOG("getsockname error");
+		return;
+	}
+
+	if(ss.ss_family == AF_UNIX)
+	{
+		evbuffer_add_buffer(bufferevent_get_output(http->bev), bufferevent_get_input(bev));
+	}
+	else
+	{
+		while(http->loop());
+	}
 }
 
 void Http::write_cb(bufferevent *bev, void *ctx)
@@ -90,8 +109,34 @@ void Http::event_cb(bufferevent *bev, short events, void *ctx)
 	if (events & (BEV_EVENT_EOF | BEV_EVENT_ERROR))
 	{
 		Http* http = (Http*) ctx;
-		Http::release(&http);
-		DEBUG_LOG("%p", http);
+
+		int fd = bufferevent_getfd(bev);
+		sockaddr_storage ss;
+		socklen_t len = sizeof(ss);	
+		if(getsockname(fd, (sockaddr*)&ss, &len))
+		{
+			DEBUG_LOG("getsockname error");
+			return;
+		}
+
+		if(ss.ss_family == AF_UNIX)
+		{
+			DEBUG_LOG("release unix");
+			bufferevent_free(bev);
+			http->set_all_send(true);
+			evbuffer *output = bufferevent_get_output(http->bev);
+			if(evbuffer_get_length(output) == 0)
+			{
+				Http::release(&http);	
+			}
+		}
+		else
+		{
+			DEBUG_LOG("release http");
+			Http::release(&http);
+			DEBUG_LOG("%p", http);
+		}
+
 	}
 }
 
@@ -362,13 +407,12 @@ bool Http::excute()
 bool Http::exec_cgi(const string& path, const string& query)
 {
 	DEBUG_LOG("%s", path.c_str());
-	
-	int cgi_in[2], cgi_out[2];
-	if(pipe(cgi_in) < 0 || pipe(cgi_out) < 0)
+
+	int fd[2];
+	if(socketpair(AF_UNIX, SOCK_STREAM, 0, fd) < 0)
 	{
 		DEBUG_LOG("%s", strerror(errno));
-		// 502
-		bad_gateway();
+		bad_gateway(); //502
 		return  false;	
 	}
 
@@ -379,15 +423,14 @@ bool Http::exec_cgi(const string& path, const string& query)
 		bad_gateway(); //502
 		return  false;	
 	}
-	else if(pid == 0)
+	else if(pid == 0) //son
 	{
 		DEBUG_LOG("son process");
-		close(cgi_in[0]);		
-		close(cgi_out[1]);
-		
-		dup2(cgi_out[0], 0);
-		dup2(cgi_in[1], 1);
 
+		close(fd[1]);
+		dup2(fd[0], 0);
+		dup2(fd[0], 1);
+		
 		setenv("REMOTE_METHOD", method.c_str(), 1);
 		setenv("QUERY_STRING", query.c_str(), 1);
 
@@ -407,27 +450,35 @@ bool Http::exec_cgi(const string& path, const string& query)
 	else // parent
 	{
 		DEBUG_LOG("parent process");
-		close(cgi_in[1]);	
-		close(cgi_out[0]);	
+
+		close(fd[0]);
+		int val = fcntl(fd[1], F_SETFL, 0);
+		if(val < 0)
+		{
+			DEBUG_LOG("%s", strerror(errno));
+			return  false;	
+		}
+
+		val = fcntl(fd[1], F_SETFL, val | O_NONBLOCK);
+		if(val < 0)
+		{
+			DEBUG_LOG("%s", strerror(errno));
+			return  false;	
+		}
+		DEBUG_LOG("unix: %d", fd[1]);
+		event_base* base = bufferevent_get_base(bev);
+		bufferevent* bev_new  = bufferevent_socket_new(base, fd[1], 
+			BEV_OPT_CLOSE_ON_FREE /*| BEV_OPT_THREADSAFE*/);
+
+		bufferevent_setcb(bev_new, read_cb, write_cb, event_cb, this);
+		bufferevent_enable(bev_new, EV_READ);
 
 		evbuffer* output = bufferevent_get_output(bev);
 		string head =  "HTTP/1.1 200 OK\r\n";
-	//	head += "Content-type: text/html\r\n";
-	//	head += "\r\n";
 		evbuffer_add(output, head.c_str(), head.length());
 
-		size_t sz;
-		char str[1024] = {'\0'};
-		while( (sz = read(cgi_in[0], str, sizeof(str))) > 0 )
-		{
-			evbuffer_add(output, str, sz);
-
-			str[sz] = '\0';
-			DEBUG_LOG("%s", str);
-		}
-
-		set_all_send(true);
-		waitpid(pid, NULL, 0);
+		//waitpid(pid, NULL, 0);
+		//set_all_send(true);
 	}
 
 	return true;
