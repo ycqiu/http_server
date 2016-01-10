@@ -40,6 +40,7 @@ private:
 	char status;  
 	bool all_send;
 	bufferevent* bev;
+	bufferevent* bev_cgi;
 		
 private:
 	/*explict*/ Http(event_base*, evutil_socket_t);

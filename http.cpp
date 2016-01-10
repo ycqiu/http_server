@@ -121,13 +121,18 @@ void Http::event_cb(bufferevent *bev, short events, void *ctx)
 
 		if(ss.ss_family == AF_UNIX)
 		{
-			DEBUG_LOG("release unix");
-			bufferevent_free(bev);
-			http->set_all_send(true);
 			evbuffer *output = bufferevent_get_output(http->bev);
 			if(evbuffer_get_length(output) == 0)
 			{
+				DEBUG_LOG("release http");
 				Http::release(&http);	
+			}
+			else
+			{
+				DEBUG_LOG("release unix");
+				http->set_all_send(true);
+				bufferevent_free(http->bev_cgi);
+				http->bev_cgi = NULL;
 			}
 		}
 		else
@@ -153,7 +158,7 @@ void Http::release(Http** p_http)
 }
 
 Http::Http(event_base* base, evutil_socket_t fd): status(REQUEST_LINE), 
-	all_send(false)
+	all_send(false), bev_cgi(NULL)
 {
 	Http::init_map();
 	bev = bufferevent_socket_new(base, fd, 
@@ -168,8 +173,17 @@ Http::Http(event_base* base, evutil_socket_t fd): status(REQUEST_LINE),
 
 Http::~Http()
 {
-	bufferevent_free(bev);
-	bev = NULL;
+	if(bev)
+	{
+		bufferevent_free(bev);
+		bev = NULL;
+	}
+
+	if(bev_cgi)
+	{
+		bufferevent_free(bev_cgi);
+		bev_cgi = NULL;
+	}
 	DEBUG_LOG("~Http");
 }
 
@@ -467,11 +481,11 @@ bool Http::exec_cgi(const string& path, const string& query)
 		}
 		DEBUG_LOG("unix: %d", fd[1]);
 		event_base* base = bufferevent_get_base(bev);
-		bufferevent* bev_new  = bufferevent_socket_new(base, fd[1], 
+		bev_cgi  = bufferevent_socket_new(base, fd[1], 
 			BEV_OPT_CLOSE_ON_FREE /*| BEV_OPT_THREADSAFE*/);
 
-		bufferevent_setcb(bev_new, read_cb, write_cb, event_cb, this);
-		bufferevent_enable(bev_new, EV_READ);
+		bufferevent_setcb(bev_cgi, read_cb, write_cb, event_cb, this);
+		bufferevent_enable(bev_cgi, EV_READ);
 
 		evbuffer* output = bufferevent_get_output(bev);
 		string head =  "HTTP/1.1 200 OK\r\n";
