@@ -47,38 +47,20 @@ string Http::get_type(const string& key)
 
 void Http::read_cb(bufferevent *bev, void *ctx)
 {
-	//evbuffer *input = bufferevent_get_input(bev);
-	//int input_len = evbuffer_get_length(input);
-	//DEBUG_LOG("%s", evbuffer_pullup(input, input_len));
-/*
-	char* line;
-	size_t len;
-	line = evbuffer_readln(input, &len, EVBUFFER_EOL_CRLF);
-	if(line) //获得一行
-	{
-		DEBUG_LOG("%s", line);
-		free(line);	
-	}*/
-
 	DEBUG_LOG("read");
 	Http* http = (Http*)ctx;
-	int fd = bufferevent_getfd(bev);
-	DEBUG_LOG("%d", fd);
-	sockaddr_storage ss;
-	socklen_t len = sizeof(ss);	
-	if(getsockname(fd, (sockaddr*)&ss, &len))
-	{
-		DEBUG_LOG("getsockname error");
-		return;
-	}
 
-	if(ss.ss_family == AF_UNIX)
+	if(http->bev == bev)
+	{
+		while(http->loop());	
+	}
+	else if(http->bev_cgi == bev)
 	{
 		evbuffer_add_buffer(bufferevent_get_output(http->bev), bufferevent_get_input(bev));
 	}
 	else
 	{
-		while(http->loop());
+		DEBUG_LOG("error read_cb");	
 	}
 }
 
@@ -110,16 +92,7 @@ void Http::event_cb(bufferevent *bev, short events, void *ctx)
 	{
 		Http* http = (Http*) ctx;
 
-		int fd = bufferevent_getfd(bev);
-		sockaddr_storage ss;
-		socklen_t len = sizeof(ss);	
-		if(getsockname(fd, (sockaddr*)&ss, &len))
-		{
-			DEBUG_LOG("getsockname error");
-			return;
-		}
-
-		if(ss.ss_family == AF_UNIX)
+		if(http->bev_cgi == bev)
 		{
 			evbuffer *output = bufferevent_get_output(http->bev);
 			if(evbuffer_get_length(output) == 0)
@@ -133,15 +106,17 @@ void Http::event_cb(bufferevent *bev, short events, void *ctx)
 				http->set_all_send(true);
 				bufferevent_free(http->bev_cgi);
 				http->bev_cgi = NULL;
-			}
+			}	
 		}
-		else
+		else if(http->bev == bev)
 		{
 			DEBUG_LOG("release http");
 			Http::release(&http);
-			DEBUG_LOG("%p", http);
 		}
-
+		else
+		{
+			DEBUG_LOG("error event_cb");	
+		}
 	}
 }
 
@@ -479,7 +454,7 @@ bool Http::exec_cgi(const string& path, const string& query)
 			DEBUG_LOG("%s", strerror(errno));
 			return  false;	
 		}
-		DEBUG_LOG("unix: %d", fd[1]);
+
 		event_base* base = bufferevent_get_base(bev);
 		bev_cgi  = bufferevent_socket_new(base, fd[1], 
 			BEV_OPT_CLOSE_ON_FREE /*| BEV_OPT_THREADSAFE*/);
@@ -490,9 +465,6 @@ bool Http::exec_cgi(const string& path, const string& query)
 		evbuffer* output = bufferevent_get_output(bev);
 		string head =  "HTTP/1.1 200 OK\r\n";
 		evbuffer_add(output, head.c_str(), head.length());
-
-		//waitpid(pid, NULL, 0);
-		//set_all_send(true);
 	}
 
 	return true;
