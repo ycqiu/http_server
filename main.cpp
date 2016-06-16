@@ -78,8 +78,7 @@ int main(int argc, char* argv[])
 	}
 	else
 	{
-		//sin.sin_port = htons(80);
-		sin.sin_port = htons(4567);
+		sin.sin_port = htons(80);
 	}
 
 	sin.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -90,7 +89,7 @@ int main(int argc, char* argv[])
 	
 	if(listener == NULL)
 	{
-		DEBUG_LOG("get evconnlistener error!");
+		ERROR_LOG("listen error!");
 		return 0;
 	}
 

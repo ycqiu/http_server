@@ -1,8 +1,18 @@
 #include "log.h"
+#include <string.h> 
 
-Log::Log(const string& n, const string& p, 
-		bool mult_thread): 
-	name(n), path(p), file(NULL), using_mult_thread(mult_thread) 
+using namespace std;
+
+
+Log& Log::create(const std::string& n, const std::string& p, int mult_thread, int l)
+{
+	static Log log(n, p, mult_thread, l);
+	return log;
+}
+
+Log::Log(const std::string& n, const std::string& p, 
+		int mult_thread, int l): 
+	name(n), path(p), level(l), file(NULL), using_mult_thread(mult_thread) 
 {
 	next_time = time(NULL);	
 	next_time = (next_time / DAY_SECONDS + 1) * DAY_SECONDS;
@@ -11,7 +21,7 @@ Log::Log(const string& n, const string& p,
 	{
 		pthread_mutex_init(&mutex, NULL);
 	}
-	open_new_file();
+	//open_new_file();
 }
 
 bool Log::need_open_new_file()
@@ -21,25 +31,28 @@ bool Log::need_open_new_file()
 	return now_time >= next_time;
 }
 
-void Log::open_new_file()
+int Log::open_new_file()
 {
-	string full_path = path + "/" + name;
-	string day;
+	std::string full_path = path + "/" + name;
+	std::string day;
 	get_year_month_day(day);   
 
-	full_path += "_" + day;
-	file = fopen(full_path.c_str(), "ab+");				
-	//cout << fileno(file) << endl;
+	full_path += "_" + day + ".log";
+	file = fopen(full_path.c_str(), "a+");				
 	if(file == NULL)
 	{
-		return;
+		return -1;
 	}
+	return 0;
 }
 
 void Log::release_file()
 {
-	fclose(file);
-	file = NULL;
+	if(file)
+	{
+		fclose(file);
+		file = NULL;
+	}
 }
 
 Log::~Log()
@@ -57,29 +70,66 @@ void Log::update_next_time()
 	next_time += DAY_SECONDS;
 }
 
-void Log::print(const char* file_name, int line, 
+int Log::print(int l, const char* file_name, int line, 
 		const char* func, const char* fmt, ...)
 {
-	if(using_mult_thread)
+	if(level != Log::ALL && level < l)
 	{
-		pthread_mutex_lock(&mutex);
+		return 1;
 	}
+
+	lock();
 
 	if(need_open_new_file())
 	{
 		release_file();
-		open_new_file();
+		if(open_new_file())
+		{
+			unlock();
+			return -1;
+		}
 		update_next_time();
 	}
 
-	string day, hour, tm;
+	//lazy open
+	if(file == NULL)
+	{
+		if(open_new_file())
+		{
+			unlock();
+			return -2;
+		}
+	}
+
+	std::string msg;
+	switch(l)
+	{
+	case DEBUG:
+		msg = "debug";
+		break;
+
+	case INFO:
+		msg = "info";
+		break;
+
+	case ERROR:
+		msg = "error";
+		break;
+
+	default:
+		unlock();
+		return -3;
+	}
+		
+	fprintf(file, "[%s]", msg.c_str());
+
+	std::string day, hour, tm;
 	get_year_month_day(day);
 	get_hour_min_sec(hour);
-
 	tm = day + " " + hour; 
-	fprintf(file, "[%s] ", tm.c_str());
-	fprintf(file, "[%s:%d] ", file_name, line);
-	fprintf(file, "[%s()]: ", func);
+	fprintf(file, "[%s]", tm.c_str());
+	fprintf(file, "[%s:%d]", file_name, line);
+	fprintf(file, "[%s]: ", func);
 
 	va_list ap;
 	va_start(ap, fmt);
@@ -89,49 +139,73 @@ void Log::print(const char* file_name, int line,
 	fprintf(file, "\n");
 	fflush(file);
 
+	unlock();
+	return 0;
+}
+
+void Log::lock()
+{
+	if(using_mult_thread)
+	{
+		pthread_mutex_lock(&mutex);
+	}
+}
+
+void Log::unlock()
+{
 	if(using_mult_thread)
 	{
 		pthread_mutex_unlock(&mutex);
 	}
 }
 
-void Log::get_year_month_day(string& res)
+void Log::get_year_month_day(std::string& res)
 {
 	time_t cur_time = time(NULL);
 	struct tm * timeinfo = localtime(&cur_time);
 
 	char buffer[] = {"yyyy-mm-dd"};
 	strftime(buffer, sizeof(buffer), "%F", timeinfo);
-	res = string(buffer);
+	res = std::string(buffer);
 }
 
-void Log::get_hour_min_sec(string& res)
+void Log::get_hour_min_sec(std::string& res)
 {
 	time_t cur_time = time(NULL);
 	struct tm * timeinfo = localtime(&cur_time);
 
 	char buffer[] = {"hh:mm:ss"};
 	strftime(buffer, sizeof(buffer), "%T", timeinfo);
-	res = string(buffer);
+	res = std::string(buffer);
 }
 
 
-Log* LogContainer::debug_log = NULL;
-const string LogContainer::log_path = ".";
-const bool LogContainer::using_mult_thread = false; 
+Log* LogContainer::log = NULL;
 
 Log* LogContainer::get()
 {
-	return debug_log;
+	return log;
 }
 
-void LogContainer::set(Log* log)
+Log* LogContainer::create(const char* name, const char* conf)
 {
-	debug_log = log;
-}
+	string log_path = ".";
+	int using_mult_thread = 1; 
+	int level = Log::ALL;
+	
+	FILE* file = fopen(conf, "r");
+	if(file)
+	{
+		char path[256] = {0};
+		fscanf(file, "log_path=%s\n", path); 
+		if(strlen(path))
+		{
+			log_path = path;
+		}
+		fscanf(file, "using_mult_thread=%d\n", &using_mult_thread); 
+		fscanf(file, "level=%d\n", &level);
+		fclose(file); 
+	}
 
-Log* LogContainer::create(const char* name)
-{
-	return new Log(name, log_path, using_mult_thread); 
+	return log = &Log::create(name, log_path, using_mult_thread, level); 
 }
-
